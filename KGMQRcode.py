@@ -1,16 +1,18 @@
 # QRCode generator
 import glob
 import os
+import sys
 import tkinter
 from os.path import exists
-
 import qrcode
+import qrcode.image.svg
 from tkinter.ttk import *
 from tkinter import *
 from tkinter import filedialog, colorchooser, messagebox
 import time
 import copy
 import re
+# install XML library for SVG files
 
 # tkinter root widget
 from PIL import ImageTk
@@ -31,11 +33,15 @@ def create():
     try:
         # combines file location and file name
         completename = os.path.join(qrfilelocation.get(), qrsave.get())
+        displayname = os.path.join(qrfilelocation.get(), qrsave.get())
         file_exists = exists(completename)
+        # Combined path factory, fixes white space that may occur when zooming
+        factory = qrcode.image.svg.SvgPathImage
         if file_exists == True:# Checks to see if QR esist
             messagebox.showerror("Error", "This Code already Exist!!!")
         else:
             # Qr code style
+            #create SVG QR code
             qr = qrcode.QRCode(
                 version=qrversion.get(),
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -44,9 +50,23 @@ def create():
             )
             qr.add_data(qrdata.get())
             qr.make(fit=True)
-            img = qr.make_image(fill_color=color_code, back_color=color_codebg)
+            img = qr.make_image(image_factory=factory, fill_color=color_code, back_color=color_codebg)
             img.save(completename)
-            display = PhotoImage(file=completename)
+            # Create svj QR code for display in svj format
+            #...................................................................................................................................................
+            qrdisplay = qrcode.QRCode(
+                version=qrversion.get(),
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=qrboxsize.get(),
+                border=qrborder.get(),
+            )
+            qrdisplay.add_data(qrdata.get())
+            qrdisplay.make(fit=True)
+            svjimg = completename[:completename.find(".")]
+            displayname = svjimg + ".svj"
+            img = qr.make_image(fill_color=color_code, back_color=color_codebg)
+            img.save(displayname)
+            display = PhotoImage(file=displayname)
             # Hold image in memory. Tkinters garbage collection will get rid of the image from the main loop otherwise
             myCanvas.image = display
             myCanvas.create_image(0, 0, image=display, anchor="nw")
@@ -65,6 +85,7 @@ def batch():
     if qty.get() == "":
         messagebox.showerror("Error", "Input a batch quantity")
     # initializes datanum with a copy of the current qrdata
+    factory = qrcode.image.svg.SvgPathImage
     try:
 
         datanum = copy.copy(int(qrdata.get()))
@@ -76,7 +97,7 @@ def batch():
             qrdata.insert(0,  datanum)
 
             # combines file location, data input and .svj to save the qrcode with its data input as its file name
-            completename = os.path.join(qrfilelocation.get(), str(datanum) + ".svj")
+            completename = os.path.join(qrfilelocation.get(), str(datanum) + ".svg")
             file_exists = exists(completename)
             if file_exists == True:  # Checks to see if QR esist
                 messagebox.showerror("Error", "This Serial already Exist!!!: {0}".format(datanum))
@@ -92,9 +113,25 @@ def batch():
                 )
                 qr.add_data(str(datanum))
                 qr.make(fit=True)
-                img = qr.make_image(fill_color=color_code, back_color=color_codebg)
+                img = qr.make_image(image_factory=factory, fill_color=color_code, back_color=color_codebg)
                 img.save(completename)
-                display = PhotoImage(file=completename)
+                #................................................................................................................
+                #QR code diplay in svj format
+                qrdisplay = qrcode.QRCode(
+                    version=qrversion.get(),
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=qrboxsize.get(),
+                    border=qrborder.get(),
+                )
+                qrdisplay.add_data(qrdata.get())
+                qrdisplay.make(fit=True)
+                svjimg = completename[:completename.find(".")]
+                displayname = svjimg + ".svj"
+                img = qr.make_image(fill_color=color_code, back_color=color_codebg)
+                img.save(displayname)
+                display = PhotoImage(file=displayname)
+
+
                 # Hold image in memory. Tkinters garbage collection will get rid of the image from the main loop otherwise
                 myCanvas.image = display
                 myCanvas.create_image(0, 0, image=display, anchor="nw")
@@ -103,14 +140,21 @@ def batch():
                 datacopy = copy.copy(str(qrdata.get()))
                 # the qrdata field is then cleared
                 qrdata.delete(0, 'end')
-                dataslice = datacopy[datacopy.find("-"):] # finds the "-" in data copy and slices from that point to the end of the string
-                # data copy is then formatted to only contain the number of the serial for iteration
-                datacopy = re.sub('[^0-9 \n\.]', '', dataslice)
-                # the formatted data is then inserted into qrdata to continue iteration
-                qrdata.insert(0, datacopy)
-                datacopyint = int(datacopy)# assigns the int value of data copy to the datacopyint variable
-                datacopyint += 1 # increments datacopy
-                datanum = datacopyint# assignes datacopy int to datanum
+                if "-" in datacopy:
+                    dataslice = datacopy[datacopy.find("-"):] # finds the "-" in data copy and slices from that point to the end of the string
+                    # data copy is then formatted to only contain the number of the serial for iteration
+                    datacopy = re.sub('[^0-9 \n\.]', '', dataslice)
+                    # the formatted data is then inserted into qrdata to continue iteration
+                    qrdata.insert(0, datacopy)
+                    datacopyint = int(datacopy)  # assigns the int value of data copy to the datacopyint variable
+                    datacopyint += 1  # increments datacopy
+                    datanum = datacopyint  # assignes datacopy int to datanum
+                else:
+                    # the formatted data is then inserted into qrdata to continue iteration
+                    qrdata.insert(0, datacopy)
+                    datacopyint = int(datacopy)# assigns the int value of data copy to the datacopyint variable
+                    datacopyint += 1 # increments datacopy
+                    datanum = datacopyint# assignes datacopy int to datanum
         return datanum
     except NameError as err:
         messagebox.showerror("Error", "Name Error: {0}".format(err))
